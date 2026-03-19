@@ -11,7 +11,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            background-color: #f0f4f8; /* 專業的淺藍灰色背景 */
+            background-color: #f0f4f8; 
             margin: 0;
             padding: 20px;
             color: #333;
@@ -84,18 +84,41 @@
             margin-bottom: 15px;
         }
 
-        /* 文字框 */
+        /* 原始辨識文字框 */
         #resultBox {
             width: 100%;
             max-width: 640px;
-            height: 120px;
-            font-size: 18px;
+            height: 100px;
+            font-size: 16px;
             padding: 15px;
             border-radius: 8px;
             border: 2px solid #bdc3c7;
             resize: none;
             box-sizing: border-box;
+            background-color: #fdfdfd;
         }
+
+        /* 關鍵字偵測結果框 (新增) */
+        #keywordBox {
+            width: 100%;
+            max-width: 640px;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 8px;
+            background-color: #e2e3e5;
+            color: #383d41;
+            font-size: 20px;
+            font-weight: bold;
+            text-align: center;
+            border: 2px dashed #adb5bd;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+        }
+        /* 針對不同區域的顏色特效 */
+        .found-r1 { background-color: #d4edda !important; color: #155724 !important; border-color: #c3e6cb !important; }
+        .found-r2 { background-color: #d1ecf1 !important; color: #0c5460 !important; border-color: #bee5eb !important; }
+        .found-r3 { background-color: #f8d7da !important; color: #721c24 !important; border-color: #f5c6cb !important; }
+        .not-found { background-color: #fff3cd !important; color: #856404 !important; border-color: #ffeeba !important; }
 
         #captureCanvas { display: none; }
     </style>
@@ -119,7 +142,9 @@
         <button id="startBtn">▶️ 開始辨識</button>
     </div>
 
-    <textarea id="resultBox" placeholder="文字辨識結果將顯示於此 (每 5 秒辨識一次)..." readonly></textarea>
+    <textarea id="resultBox" placeholder="原始文字辨識結果 (每 2 秒辨識一次)..." readonly></textarea>
+
+    <div id="keywordBox">等待辨識畫面中的地址...</div>
 
     <canvas id="captureCanvas"></canvas>
 
@@ -130,6 +155,7 @@
         const startBtn = document.getElementById('startBtn');
         const connectBtn = document.getElementById('connectBtn');
         const resultBox = document.getElementById('resultBox');
+        const keywordBox = document.getElementById('keywordBox'); // 新增的關鍵字框
         const canvas = document.getElementById('captureCanvas');
         const sysStatus = document.getElementById('sysStatus');
         const serialStatus = document.getElementById('serialStatus');
@@ -177,7 +203,7 @@
             }
             try {
                 port = await navigator.serial.requestPort();
-                await port.open({ baudRate: 115200 }); // Microbit 預設鮑率
+                await port.open({ baudRate: 115200 }); 
                 
                 const textEncoder = new TextEncoderStream();
                 const writableStreamClosed = textEncoder.readable.pipeTo(port.writable);
@@ -195,16 +221,18 @@
             }
         });
 
-        // 傳送資料到 Microbit 並啟動冷卻
+        // 傳送資料到 Microbit 並啟動 5 秒冷卻
         async function sendToMicrobit(command) {
             if (!writer) {
                 console.log("未連接 Microbit，略過傳送指令:", command);
                 return;
             }
-            if (isCooldown) return; // 如果在冷卻中，不執行
+            if (isCooldown) {
+                console.log("冷卻中，略過傳送");
+                return; 
+            }
 
             try {
-                // 傳送文字並加上換行符號 (\n)，方便 Microbit 接收讀取
                 await writer.write(command + "\n");
                 startCooldown(command);
             } catch (error) {
@@ -232,21 +260,34 @@
             }, 1000);
         }
 
-        // --- 3. 邏輯判斷功能 ---
+        // --- 3. 邏輯判斷功能 (更新 UI 狀態框) ---
         function checkTextAndTrigger(text) {
-            const lowerText = text.toLowerCase(); // 轉小寫方便比對英文
+            const lowerText = text.toLowerCase();
+            
+            // 先清除所有顏色 class
+            keywordBox.className = ''; 
 
             if (lowerText.includes("九龍") || lowerText.includes("kowloon")) {
+                keywordBox.innerText = "✅ 偵測到：九龍 (R1)";
+                keywordBox.classList.add('found-r1');
                 sendToMicrobit("R1");
             } 
             else if (lowerText.includes("新界") || lowerText.includes("new territories")) {
+                keywordBox.innerText = "✅ 偵測到：新界 (R2)";
+                keywordBox.classList.add('found-r2');
                 sendToMicrobit("R2");
             } 
             else {
                 // 檢查是否包含港島區關鍵字
                 const isHKIsland = hkIslandKeywords.some(keyword => lowerText.includes(keyword.toLowerCase()));
                 if (isHKIsland) {
+                    keywordBox.innerText = "✅ 偵測到：香港島 (R3)";
+                    keywordBox.classList.add('found-r3');
                     sendToMicrobit("R3");
+                } else {
+                    // 如果都沒偵測到
+                    keywordBox.innerText = "❌ 未偵測到目標區域";
+                    keywordBox.classList.add('not-found');
                 }
             }
         }
@@ -262,6 +303,8 @@
                 startBtn.innerText = "▶️ 開始辨識";
                 startBtn.style.backgroundColor = "#27ae60";
                 sysStatus.innerText = "已停止辨識。";
+                keywordBox.innerText = "等待辨識畫面中的地址...";
+                keywordBox.className = '';
                 return;
             }
 
@@ -271,7 +314,6 @@
 
             try {
                 if (!worker) {
-                    // 載入繁體中文與英文模型
                     worker = await Tesseract.createWorker('chi_tra+eng');
                 }
 
@@ -281,10 +323,10 @@
                 startBtn.innerText = "⏹️ 停止辨識";
                 startBtn.style.backgroundColor = "#c0392b";
                 startBtn.disabled = false;
-                sysStatus.innerText = "🔄 辨識中 (每 5 秒一次)";
+                sysStatus.innerText = "🔄 辨識中 (每 2 秒一次)";
                 sysStatus.style.color = "#0056b3";
 
-                // 每 5 秒 (5000 毫秒) 執行一次
+                // 改為每 2 秒 (2000 毫秒) 執行一次
                 intervalId = setInterval(async () => {
                     if (isProcessingFrame) return; 
                     isProcessingFrame = true;
@@ -297,8 +339,11 @@
                         
                         if (cleanText !== "") {
                             resultBox.value = `[最新辨識結果]:\n${cleanText}`;
-                            // 檢查文字並決定是否傳送給 Microbit
+                            // 檢查文字並更新關鍵字框 / 傳送訊號
                             checkTextAndTrigger(cleanText);
+                        } else {
+                            keywordBox.innerText = "❌ 畫面中找不到文字";
+                            keywordBox.className = 'not-found';
                         }
                     } catch (error) {
                         console.error("辨識錯誤:", error);
@@ -306,7 +351,7 @@
                         isProcessingFrame = false;
                     }
 
-                }, 5000);
+                }, 2000); // 這裡由 5000 改為 2000
 
             } catch (error) {
                 sysStatus.innerText = "載入模型失敗";
