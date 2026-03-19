@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>護渠大師 - AI 辨識系統</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        body {
+            font-family: "Microsoft JhengHei", sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f4f8; /* 專業的淺藍灰色背景 */
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+
+        /* 標題設計 */
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            color: #0056b3;
+            font-size: 36px;
+            margin: 0 0 10px 0;
+            letter-spacing: 2px;
+        }
+
+        /* 按鈕基本樣式 */
+        button {
+            padding: 12px 24px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        button:hover { transform: translateY(-2px); box-shadow: 0 6px 8px rgba(0,0,0,0.15); }
+        button:active { transform: translateY(0); }
+        button:disabled { background-color: #bdc3c7 !important; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        /* 特定按鈕顏色 */
+        #connectBtn { background-color: #f39c12; margin-bottom: 20px; }
+        #connectBtn:hover { background-color: #e67e22; }
+        #flipBtn { background-color: #34495e; }
+        #startBtn { background-color: #27ae60; }
+
+        /* 狀態列 */
+        .status-bar {
+            width: 100%;
+            max-width: 640px;
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border-left: 5px solid #0056b3;
+            font-size: 16px;
+        }
+        .status-bar span { font-weight: bold; color: #d35400; }
+
+        /* 鏡頭畫面 */
+        #webcam {
+            width: 100%;
+            max-width: 640px;
+            height: auto;
+            background-color: #000;
+            border-radius: 10px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            margin-bottom: 15px;
+            transition: transform 0.3s ease;
+        }
+        .flipped { transform: scaleX(-1); }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        /* 文字框 */
+        #resultBox {
+            width: 100%;
+            max-width: 640px;
+            height: 120px;
+            font-size: 18px;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #bdc3c7;
+            resize: none;
+            box-sizing: border-box;
+        }
+
+        #captureCanvas { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>護渠大師</h1>
+        <button id="connectBtn">🔌 連接 Microbit</button>
+    </div>
+
+    <div class="status-bar" id="statusBar">
+        系統狀態: <span id="sysStatus">等待連接與辨識...</span> | 
+        Microbit 傳輸: <span id="serialStatus">尚未連接</span>
+    </div>
+
+    <video id="webcam" autoplay playsinline></video>
+
+    <div class="controls">
+        <button id="flipBtn">↔️ 鏡頭翻轉</button>
+        <button id="startBtn">▶️ 開始辨識</button>
+    </div>
+
+    <textarea id="resultBox" placeholder="文字辨識結果將顯示於此 (每 5 秒辨識一次)..." readonly></textarea>
+
+    <canvas id="captureCanvas"></canvas>
+
+    <script>
+        // --- 變數與 DOM 元素設定 ---
+        const video = document.getElementById('webcam');
+        const flipBtn = document.getElementById('flipBtn');
+        const startBtn = document.getElementById('startBtn');
+        const connectBtn = document.getElementById('connectBtn');
+        const resultBox = document.getElementById('resultBox');
+        const canvas = document.getElementById('captureCanvas');
+        const sysStatus = document.getElementById('sysStatus');
+        const serialStatus = document.getElementById('serialStatus');
+        const ctx = canvas.getContext('2d');
+
+        let worker = null;
+        let isRecognizing = false;
+        let intervalId = null;
+        let isProcessingFrame = false;
+
+        // Microbit Serial 變數
+        let port = null;
+        let writer = null;
+        let isCooldown = false;
+        let cooldownTimer = null;
+
+        // --- 關鍵字清單 ---
+        const hkIslandKeywords = [
+            "中環", "上環", "金鐘", "灣仔", "銅鑼灣", "天后", "太平山頂", "半山區", "西營盤", "石塘咀", 
+            "堅尼地城", "摩星嶺", "薄扶林", "香港仔", "鴨脷洲", "黃竹坑", "深水灣", "淺水灣", "赤柱", "大潭", 
+            "石澳", "跑馬地", "大坑", "渣甸山", "炮台山", "北角", "鰂魚涌", "太古城", "西灣河", "筲箕灣", "柴灣", "小西灣",
+            "Central", "Sheung Wan", "Admiralty", "Wan Chai", "Causeway Bay", "Tin Hau", "The Peak", "Mid-Levels", 
+            "Sai Ying Pun", "Shek Tong Tsui", "Kennedy Town", "Mount Davis", "Pok Fu Lam", "Aberdeen", "Ap Lei Chau", 
+            "Wong Chuk Hang", "Deep Water Bay", "Repulse Bay", "Stanley", "Tai Tam", "Shek O", "Happy Valley", 
+            "Tai Hang", "Jardine's Lookout", "Fortress Hill", "North Point", "Quarry Bay", "Taikoo Shing", "Sai Wan Ho", 
+            "Shau Kei Wan", "Chai Wan", "Siu Sai Wan"
+        ];
+
+        // --- 1. 開啟鏡頭 ---
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+                video.srcObject = stream;
+            } catch (err) {
+                sysStatus.innerText = "無法存取鏡頭，請檢查權限";
+                sysStatus.style.color = "red";
+            }
+        }
+
+        // --- 2. 連接 Microbit (Web Serial API) ---
+        connectBtn.addEventListener('click', async () => {
+            if (!('serial' in navigator)) {
+                alert("你的瀏覽器不支援 Web Serial API，請使用最新版 Google Chrome 或 Edge，並確保使用 Localhost。");
+                return;
+            }
+            try {
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 115200 }); // Microbit 預設鮑率
+                
+                const textEncoder = new TextEncoderStream();
+                const writableStreamClosed = textEncoder.readable.pipeTo(port.writable);
+                writer = textEncoder.writable.getWriter();
+
+                serialStatus.innerText = "✅ 已連接";
+                serialStatus.style.color = "#27ae60";
+                connectBtn.innerText = "✅ Microbit 已連接";
+                connectBtn.disabled = true;
+                connectBtn.style.backgroundColor = "#27ae60";
+            } catch (error) {
+                console.error("連接 Microbit 失敗:", error);
+                serialStatus.innerText = "❌ 連接失敗";
+                serialStatus.style.color = "red";
+            }
+        });
+
+        // 傳送資料到 Microbit 並啟動冷卻
+        async function sendToMicrobit(command) {
+            if (!writer) {
+                console.log("未連接 Microbit，略過傳送指令:", command);
+                return;
+            }
+            if (isCooldown) return; // 如果在冷卻中，不執行
+
+            try {
+                // 傳送文字並加上換行符號 (\n)，方便 Microbit 接收讀取
+                await writer.write(command + "\n");
+                startCooldown(command);
+            } catch (error) {
+                console.error("傳送失敗:", error);
+            }
+        }
+
+        // 冷卻計時器邏輯
+        function startCooldown(command) {
+            isCooldown = true;
+            let timeLeft = 5;
+            serialStatus.innerText = `已發送 [${command}] (冷卻中: ${timeLeft} 秒)`;
+            serialStatus.style.color = "#d35400";
+
+            cooldownTimer = setInterval(() => {
+                timeLeft--;
+                if (timeLeft <= 0) {
+                    clearInterval(cooldownTimer);
+                    isCooldown = false;
+                    serialStatus.innerText = "✅ 準備就緒";
+                    serialStatus.style.color = "#27ae60";
+                } else {
+                    serialStatus.innerText = `已發送 [${command}] (冷卻中: ${timeLeft} 秒)`;
+                }
+            }, 1000);
+        }
+
+        // --- 3. 邏輯判斷功能 ---
+        function checkTextAndTrigger(text) {
+            const lowerText = text.toLowerCase(); // 轉小寫方便比對英文
+
+            if (lowerText.includes("九龍") || lowerText.includes("kowloon")) {
+                sendToMicrobit("R1");
+            } 
+            else if (lowerText.includes("新界") || lowerText.includes("new territories")) {
+                sendToMicrobit("R2");
+            } 
+            else {
+                // 檢查是否包含港島區關鍵字
+                const isHKIsland = hkIslandKeywords.some(keyword => lowerText.includes(keyword.toLowerCase()));
+                if (isHKIsland) {
+                    sendToMicrobit("R3");
+                }
+            }
+        }
+
+        // --- 4. 鏡頭翻轉 ---
+        flipBtn.addEventListener('click', () => { video.classList.toggle('flipped'); });
+
+        // --- 5. 開始辨識 ---
+        startBtn.addEventListener('click', async () => {
+            if (isRecognizing) {
+                clearInterval(intervalId);
+                isRecognizing = false;
+                startBtn.innerText = "▶️ 開始辨識";
+                startBtn.style.backgroundColor = "#27ae60";
+                sysStatus.innerText = "已停止辨識。";
+                return;
+            }
+
+            startBtn.disabled = true;
+            sysStatus.innerText = "載入中英雙語 AI 模型中...";
+            sysStatus.style.color = "#f39c12";
+
+            try {
+                if (!worker) {
+                    // 載入繁體中文與英文模型
+                    worker = await Tesseract.createWorker('chi_tra+eng');
+                }
+
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                isRecognizing = true;
+                startBtn.innerText = "⏹️ 停止辨識";
+                startBtn.style.backgroundColor = "#c0392b";
+                startBtn.disabled = false;
+                sysStatus.innerText = "🔄 辨識中 (每 5 秒一次)";
+                sysStatus.style.color = "#0056b3";
+
+                // 每 5 秒 (5000 毫秒) 執行一次
+                intervalId = setInterval(async () => {
+                    if (isProcessingFrame) return; 
+                    isProcessingFrame = true;
+
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                    try {
+                        const { data: { text } } = await worker.recognize(canvas);
+                        const cleanText = text.trim();
+                        
+                        if (cleanText !== "") {
+                            resultBox.value = `[最新辨識結果]:\n${cleanText}`;
+                            // 檢查文字並決定是否傳送給 Microbit
+                            checkTextAndTrigger(cleanText);
+                        }
+                    } catch (error) {
+                        console.error("辨識錯誤:", error);
+                    } finally {
+                        isProcessingFrame = false;
+                    }
+
+                }, 5000);
+
+            } catch (error) {
+                sysStatus.innerText = "載入模型失敗";
+                startBtn.disabled = false;
+            }
+        });
+
+        window.onload = initCamera;
+    </script>
+</body>
+</html>
