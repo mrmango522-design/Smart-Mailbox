@@ -49,37 +49,29 @@
         }
         .flipped { transform: scaleX(-1); }
 
-        /* 🌟 核心升級：畫面中央的視覺掃描框 */
+        /* 🌟 視覺導引方框 */
         .scan-region-guide {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            /* 調整這裡來改變方框大小 */
+            /* 🌟 在這裡將高度從 40% 改成了 80% (上下加大一倍) */
             width: 60%; 
-            height: 40%;
-            border: 4px solid #00f2fe; /* 亮藍色邊框 */
+            height: 80%; 
+            border: 4px solid #00f2fe; 
             box-shadow: 0 0 15px rgba(0, 242, 254, 0.7), inset 0 0 10px rgba(0, 242, 254, 0.5);
             border-radius: 12px;
-            pointer-events: none; /* 讓點擊穿透，不影響按鈕 */
+            pointer-events: none; 
             z-index: 10;
         }
         /* 方框中央的小十字，幫助對焦 */
         .scan-region-guide::after {
-            content: '';
-            position: absolute;
-            top: 50%; left: 50%;
-            width: 20px; height: 2px;
-            background-color: rgba(0, 242, 254, 0.8);
-            transform: translate(-50%, -50%);
+            content: ''; position: absolute; top: 50%; left: 50%; width: 20px; height: 2px;
+            background-color: rgba(0, 242, 254, 0.8); transform: translate(-50%, -50%);
         }
         .scan-region-guide::before {
-            content: '';
-            position: absolute;
-            top: 50%; left: 50%;
-            width: 2px; height: 20px;
-            background-color: rgba(0, 242, 254, 0.8);
-            transform: translate(-50%, -50%);
+            content: ''; position: absolute; top: 50%; left: 50%; width: 2px; height: 20px;
+            background-color: rgba(0, 242, 254, 0.8); transform: translate(-50%, -50%);
         }
 
         .controls { display: flex; gap: 15px; margin-bottom: 15px; }
@@ -92,8 +84,7 @@
         .found-r3 { background-color: #f8d7da !important; color: #721c24 !important; border-color: #f5c6cb !important; }
         .not-found { background-color: #fff3cd !important; color: #856404 !important; border-color: #ffeeba !important; }
 
-        /* 用於除錯或顯示前處理影像的隱藏 Canvas */
-        #debugCanvas { margin-top: 10px; border: 2px solid red; display: none; /* 改為 block 可查看前處理後的影像 */ }
+        #debugCanvas { margin-top: 10px; border: 2px solid red; display: none; }
     </style>
 </head>
 <body>
@@ -125,7 +116,6 @@
     <canvas id="debugCanvas"></canvas>
 
     <script>
-        // --- 設定與 DOM ---
         const video = document.getElementById('webcam');
         const flipBtn = document.getElementById('flipBtn');
         const startBtn = document.getElementById('startBtn');
@@ -147,55 +137,33 @@
         let isCooldown = false;
         let cooldownTimer = null;
 
-        // --- 港島關鍵字 ---
         const hkIslandKeywords = ["中環","上環","金鐘","灣仔","銅鑼灣","天后","太平山頂","半山區","西營盤","石塘咀","堅尼地城","摩星嶺","薄扶林","香港仔","鴨脷洲","黃竹坑","深水灣","淺水灣","赤柱","大潭","石澳","跑馬地","大坑","渣甸山","炮台山","北角","鰂魚涌","太古城","西灣河","筲箕灣","柴灣","小西灣","Central","SheungWan","Admiralty","WanChai","CausewayBay","TinHau","ThePeak","Mid-Levels","SaiYingPun","ShekTongTsui","KennedyTown","MountDavis","PokFuLam","Aberdeen","ApLeiChau","WongChukHang","DeepWaterBay","RepulseBay","Stanley","TaiTam","ShekO","HappyValley","TaiHang","Jardine'sLookout","FortressHill","NorthPoint","QuarryBay","TaikooShing","SaiWanHo","ShauKeiWan","ChaiWan","SiuSaiWan"];
 
-        // --- 1. 前處理影像功能 (提升辨識率的核心) ---
-        // 接受原始 Canvas，返回一個處理過的 Canvas
         function preprocessImage(sourceCanvas) {
             const width = sourceCanvas.width;
             const height = sourceCanvas.height;
-            
-            // 建立一個臨時畫布進行處理
             const procCanvas = document.createElement('canvas');
             procCanvas.width = width;
             procCanvas.height = height;
             const procCtx = procCanvas.getContext('2d');
-            
-            // 1. 將影像繪製上去
             procCtx.drawImage(sourceCanvas, 0, 0);
-            
-            // 2. 取得影像像素資料
             const imageData = procCtx.getImageData(0, 0, width, height);
             const data = imageData.data;
-            
-            // 🌟 閾值 (Threshold)：決定多暗算黑，多亮算白 (0-255)
-            // 如果環境較暗，可以把這個值調低 (例如 100)；如果太亮有反光，可以調高。
             const threshold = 128; 
 
             for (let i = 0; i < data.length; i += 4) {
-                // 3. 轉灰階 (Grayscale)
-                // 使用亮度公式: 0.299R + 0.587G + 0.114B
                 const avg = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-                
-                // 4. 二值化 (Binarization) - 變成純黑白高對比
                 const value = avg >= threshold ? 255 : 0;
-                
-                data[i]     = value; // R
-                data[i + 1] = value; // G
-                data[i + 2] = value; // B
-                // data[i+3] 是 Alpha (透明度)，保持不變
+                data[i] = value; 
+                data[i + 1] = value; 
+                data[i + 2] = value; 
             }
-            
-            // 將處理後的像素資料放回畫布
             procCtx.putImageData(imageData, 0, 0);
             return procCanvas;
         }
 
-        // --- 2. 開啟鏡頭 ---
         async function initCamera() {
             try {
-                // 請求 720p 解析度
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } });
                 video.srcObject = stream;
             } catch (err) {
@@ -204,7 +172,6 @@
             }
         }
 
-        // --- 3. 連接 Microbit (略過不變) ---
         connectBtn.addEventListener('click', async () => {
             if (!('serial' in navigator)) { alert("請使用最新版 Chrome/Edge 並開啟 Local Server。"); return; }
             try {
@@ -217,7 +184,6 @@
             } catch (error) { serialStatus.innerText = "❌ 連接失敗"; serialStatus.style.color = "red"; }
         });
 
-        // --- 4. 傳送訊號 & 冷卻 (略過不變) ---
         async function sendToMicrobit(command) {
             if (!writer || isCooldown) return; 
             try { await writer.write(command + "\n"); startCooldown(command); } catch (error) { console.error("傳送失敗:", error); }
@@ -228,9 +194,8 @@
             cooldownTimer = setInterval(() => { timeLeft--; if (timeLeft <= 0) { clearInterval(cooldownTimer); isCooldown = false; serialStatus.innerText = "✅ 準備就緒"; serialStatus.style.color = "#27ae60"; } else { serialStatus.innerText = `已發送 [${command}] (冷卻: ${timeLeft} 秒)`; } }, 1000);
         }
 
-        // --- 5. 邏輯判斷 ---
         function checkTextAndTrigger(text) {
-            const lowerText = text.toLowerCase(); // 注意：英文關鍵字已移除空格，如 NewTerritories
+            const lowerText = text.toLowerCase();
             keywordBox.className = ''; 
 
             if (lowerText.includes("九龍") || lowerText.includes("kowloon")) {
@@ -240,7 +205,6 @@
                 keywordBox.innerText = "✅ 偵測到：新界 (R2)"; keywordBox.classList.add('found-r2'); sendToMicrobit("R2");
             } 
             else {
-                // 檢查港島關鍵字
                 const isHKIsland = hkIslandKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
                 if (isHKIsland) { keywordBox.innerText = "✅ 偵測到：香港島 (R3)"; keywordBox.classList.add('found-r3'); sendToMicrobit("R3"); } 
                 else { keywordBox.innerText = "❌ 未偵測到目標區域"; keywordBox.classList.add('not-found'); }
@@ -249,7 +213,6 @@
 
         flipBtn.addEventListener('click', () => { video.classList.toggle('flipped'); });
 
-        // --- 6. 開始辨識 (🌟升級擷取邏輯) ---
         startBtn.addEventListener('click', async () => {
             if (isRecognizing) {
                 clearInterval(intervalId); isRecognizing = false;
@@ -270,34 +233,24 @@
                     if (isProcessingFrame) return; 
                     isProcessingFrame = true;
 
-                    // 1. 取得影片的原始尺寸
                     const videoWidth = video.videoWidth;
                     const videoHeight = video.videoHeight;
                     
-                    // 🌟 核心升級：計算掃描區域 (ROI)
-                    // 這裏要對應 CSS 的 .scan-region-guide (width: 60%, height: 40%)
+                    // 🌟 在這裡將高度從 0.40 改成了 0.80 (上下加大一倍)
                     const roiW_Percent = 0.60;
-                    const roiH_Percent = 0.40;
+                    const roiH_Percent = 0.80; 
                     const roiWidth = videoWidth * roiW_Percent;
                     const roiHeight = videoHeight * roiH_Percent;
-                    const roiX = (videoWidth - roiWidth) / 2; // 中央 X
-                    const roiY = (videoHeight - roiHeight) / 2; // 中央 Y
+                    const roiX = (videoWidth - roiWidth) / 2; 
+                    const roiY = (videoHeight - roiHeight) / 2; 
 
-                    // 2. 設定偵錯畫布尺寸為 ROI 的尺寸，準備擷取
                     debugCanvas.width = roiWidth;
                     debugCanvas.height = roiHeight;
 
-                    // 3. 🌟 只擷取方框內的原始影像 (sx, sy, sw, sh -> dx, dy, dw, dh)
                     debugCtx.drawImage(video, roiX, roiY, roiWidth, roiHeight, 0, 0, roiWidth, roiHeight);
-
-                    // 4. 🌟 進行前處理 (純黑白高對比)
                     const processedCanvas = preprocessImage(debugCanvas);
                     
-                    // (選用) 如果你想在網頁上看到 AI 到底看到了甚麼，請打開這行：
-                    // debugCtx.drawImage(processedCanvas, 0, 0); 
-
                     try {
-                        // 5. 🌟 將處理後的純黑白圖片交給 AI
                         const { data: { text } } = await worker.recognize(processedCanvas);
                         const cleanText = text.replace(/\s+/g, '');
                         
