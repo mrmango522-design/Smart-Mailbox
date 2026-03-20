@@ -17,7 +17,6 @@
             color: #333;
         }
 
-        /* 標題設計 */
         .header {
             text-align: center;
             margin-bottom: 20px;
@@ -29,7 +28,6 @@
             letter-spacing: 2px;
         }
 
-        /* 按鈕基本樣式 */
         button {
             padding: 12px 24px;
             font-size: 18px;
@@ -45,13 +43,11 @@
         button:active { transform: translateY(0); }
         button:disabled { background-color: #bdc3c7 !important; cursor: not-allowed; transform: none; box-shadow: none; }
 
-        /* 特定按鈕顏色 */
         #connectBtn { background-color: #f39c12; margin-bottom: 20px; }
         #connectBtn:hover { background-color: #e67e22; }
         #flipBtn { background-color: #34495e; }
         #startBtn { background-color: #27ae60; }
 
-        /* 狀態列 */
         .status-bar {
             width: 100%;
             max-width: 640px;
@@ -65,7 +61,6 @@
         }
         .status-bar span { font-weight: bold; color: #d35400; }
 
-        /* 鏡頭畫面 */
         #webcam {
             width: 100%;
             max-width: 640px;
@@ -84,7 +79,6 @@
             margin-bottom: 15px;
         }
 
-        /* 原始辨識文字框 */
         #resultBox {
             width: 100%;
             max-width: 640px;
@@ -96,9 +90,10 @@
             resize: none;
             box-sizing: border-box;
             background-color: #fdfdfd;
+            /* 讓文字可以自動換行，不會超出框框 */
+            word-wrap: break-word; 
         }
 
-        /* 關鍵字偵測結果框 (新增) */
         #keywordBox {
             width: 100%;
             max-width: 640px;
@@ -114,7 +109,7 @@
             box-sizing: border-box;
             transition: all 0.3s ease;
         }
-        /* 針對不同區域的顏色特效 */
+
         .found-r1 { background-color: #d4edda !important; color: #155724 !important; border-color: #c3e6cb !important; }
         .found-r2 { background-color: #d1ecf1 !important; color: #0c5460 !important; border-color: #bee5eb !important; }
         .found-r3 { background-color: #f8d7da !important; color: #721c24 !important; border-color: #f5c6cb !important; }
@@ -142,20 +137,19 @@
         <button id="startBtn">▶️ 開始辨識</button>
     </div>
 
-    <textarea id="resultBox" placeholder="原始文字辨識結果 (每 2 秒辨識一次)..." readonly></textarea>
+    <textarea id="resultBox" placeholder="原始文字辨識結果將顯示於此 (無空格)..." readonly></textarea>
 
     <div id="keywordBox">等待辨識畫面中的地址...</div>
 
     <canvas id="captureCanvas"></canvas>
 
     <script>
-        // --- 變數與 DOM 元素設定 ---
         const video = document.getElementById('webcam');
         const flipBtn = document.getElementById('flipBtn');
         const startBtn = document.getElementById('startBtn');
         const connectBtn = document.getElementById('connectBtn');
         const resultBox = document.getElementById('resultBox');
-        const keywordBox = document.getElementById('keywordBox'); // 新增的關鍵字框
+        const keywordBox = document.getElementById('keywordBox'); 
         const canvas = document.getElementById('captureCanvas');
         const sysStatus = document.getElementById('sysStatus');
         const serialStatus = document.getElementById('serialStatus');
@@ -166,13 +160,11 @@
         let intervalId = null;
         let isProcessingFrame = false;
 
-        // Microbit Serial 變數
         let port = null;
         let writer = null;
         let isCooldown = false;
         let cooldownTimer = null;
 
-        // --- 關鍵字清單 ---
         const hkIslandKeywords = [
             "中環", "上環", "金鐘", "灣仔", "銅鑼灣", "天后", "太平山頂", "半山區", "西營盤", "石塘咀", 
             "堅尼地城", "摩星嶺", "薄扶林", "香港仔", "鴨脷洲", "黃竹坑", "深水灣", "淺水灣", "赤柱", "大潭", 
@@ -184,7 +176,6 @@
             "Shau Kei Wan", "Chai Wan", "Siu Sai Wan"
         ];
 
-        // --- 1. 開啟鏡頭 ---
         async function initCamera() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
@@ -195,7 +186,6 @@
             }
         }
 
-        // --- 2. 連接 Microbit (Web Serial API) ---
         connectBtn.addEventListener('click', async () => {
             if (!('serial' in navigator)) {
                 alert("你的瀏覽器不支援 Web Serial API，請使用最新版 Google Chrome 或 Edge，並確保使用 Localhost。");
@@ -221,16 +211,9 @@
             }
         });
 
-        // 傳送資料到 Microbit 並啟動 5 秒冷卻
         async function sendToMicrobit(command) {
-            if (!writer) {
-                console.log("未連接 Microbit，略過傳送指令:", command);
-                return;
-            }
-            if (isCooldown) {
-                console.log("冷卻中，略過傳送");
-                return; 
-            }
+            if (!writer) return;
+            if (isCooldown) return; 
 
             try {
                 await writer.write(command + "\n");
@@ -240,7 +223,6 @@
             }
         }
 
-        // 冷卻計時器邏輯
         function startCooldown(command) {
             isCooldown = true;
             let timeLeft = 5;
@@ -260,42 +242,42 @@
             }, 1000);
         }
 
-        // --- 3. 邏輯判斷功能 (更新 UI 狀態框) ---
         function checkTextAndTrigger(text) {
+            // text 已經被清除了所有空格，直接轉小寫比對
             const lowerText = text.toLowerCase();
-            
-            // 先清除所有顏色 class
             keywordBox.className = ''; 
 
+            // 注意：因為空格被移除了，所以 "new territories" 變成了 "newterritories"
             if (lowerText.includes("九龍") || lowerText.includes("kowloon")) {
                 keywordBox.innerText = "✅ 偵測到：九龍 (R1)";
                 keywordBox.classList.add('found-r1');
                 sendToMicrobit("R1");
             } 
-            else if (lowerText.includes("新界") || lowerText.includes("new territories")) {
+            else if (lowerText.includes("新界") || lowerText.includes("newterritories")) {
                 keywordBox.innerText = "✅ 偵測到：新界 (R2)";
                 keywordBox.classList.add('found-r2');
                 sendToMicrobit("R2");
             } 
             else {
-                // 檢查是否包含港島區關鍵字
-                const isHKIsland = hkIslandKeywords.some(keyword => lowerText.includes(keyword.toLowerCase()));
+                // 將港島的關鍵字清單也全部移除空格再來比對
+                const isHKIsland = hkIslandKeywords.some(keyword => {
+                    const noSpaceKeyword = keyword.toLowerCase().replace(/\s+/g, '');
+                    return lowerText.includes(noSpaceKeyword);
+                });
+
                 if (isHKIsland) {
                     keywordBox.innerText = "✅ 偵測到：香港島 (R3)";
                     keywordBox.classList.add('found-r3');
                     sendToMicrobit("R3");
                 } else {
-                    // 如果都沒偵測到
                     keywordBox.innerText = "❌ 未偵測到目標區域";
                     keywordBox.classList.add('not-found');
                 }
             }
         }
 
-        // --- 4. 鏡頭翻轉 ---
         flipBtn.addEventListener('click', () => { video.classList.toggle('flipped'); });
 
-        // --- 5. 開始辨識 ---
         startBtn.addEventListener('click', async () => {
             if (isRecognizing) {
                 clearInterval(intervalId);
@@ -326,7 +308,6 @@
                 sysStatus.innerText = "🔄 辨識中 (每 2 秒一次)";
                 sysStatus.style.color = "#0056b3";
 
-                // 改為每 2 秒 (2000 毫秒) 執行一次
                 intervalId = setInterval(async () => {
                     if (isProcessingFrame) return; 
                     isProcessingFrame = true;
@@ -335,11 +316,12 @@
 
                     try {
                         const { data: { text } } = await worker.recognize(canvas);
-                        const cleanText = text.trim();
+                        
+                        // 🌟 核心改動：利用正規表達式移除所有的空白字元（包含空格、換行等）
+                        const cleanText = text.replace(/\s+/g, '');
                         
                         if (cleanText !== "") {
                             resultBox.value = `[最新辨識結果]:\n${cleanText}`;
-                            // 檢查文字並更新關鍵字框 / 傳送訊號
                             checkTextAndTrigger(cleanText);
                         } else {
                             keywordBox.innerText = "❌ 畫面中找不到文字";
@@ -351,7 +333,7 @@
                         isProcessingFrame = false;
                     }
 
-                }, 2000); // 這裡由 5000 改為 2000
+                }, 2000); 
 
             } catch (error) {
                 sysStatus.innerText = "載入模型失敗";
