@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智慧郵箱 - AI 辨識系統</title>
+    <title>智慧郵箱 - 高精準 AI 辨識系統</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
         body {
@@ -17,105 +17,83 @@
             color: #333;
         }
 
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .header h1 {
-            color: #0056b3;
-            font-size: 36px;
-            margin: 0 0 10px 0;
-            letter-spacing: 2px;
-        }
+        .header { text-align: center; margin-bottom: 15px; }
+        .header h1 { color: #0056b3; font-size: 36px; margin: 0 0 10px 0; letter-spacing: 2px; }
 
-        button {
-            padding: 12px 24px;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            border: none;
-            border-radius: 8px;
-            color: white;
-            transition: all 0.2s;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
+        button { padding: 12px 24px; font-size: 18px; font-weight: bold; cursor: pointer; border: none; border-radius: 8px; color: white; transition: all 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         button:hover { transform: translateY(-2px); box-shadow: 0 6px 8px rgba(0,0,0,0.15); }
-        button:active { transform: translateY(0); }
         button:disabled { background-color: #bdc3c7 !important; cursor: not-allowed; transform: none; box-shadow: none; }
-
-        #connectBtn { background-color: #f39c12; margin-bottom: 20px; }
-        #connectBtn:hover { background-color: #e67e22; }
+        #connectBtn { background-color: #f39c12; margin-bottom: 15px; }
         #flipBtn { background-color: #34495e; }
         #startBtn { background-color: #27ae60; }
 
-        .status-bar {
-            width: 100%;
-            max-width: 640px;
-            background-color: #fff;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-            border-left: 5px solid #0056b3;
-            font-size: 16px;
-        }
+        .status-bar { width: 100%; max-width: 640px; background-color: #fff; padding: 12px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 5px solid #0056b3; font-size: 15px; box-sizing: border-box; }
         .status-bar span { font-weight: bold; color: #d35400; }
 
-        #webcam {
+        /* 鏡頭容器，用來定位掃描框 */
+        .video-container {
+            position: relative;
             width: 100%;
             max-width: 640px;
-            height: auto;
-            background-color: #000;
+            overflow: hidden;
             border-radius: 10px;
             box-shadow: 0 8px 16px rgba(0,0,0,0.2);
             margin-bottom: 15px;
+        }
+
+        #webcam {
+            width: 100%;
+            display: block;
+            background-color: #000;
             transition: transform 0.3s ease;
         }
         .flipped { transform: scaleX(-1); }
 
-        .controls {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 15px;
+        /* 🌟 核心升級：畫面中央的視覺掃描框 */
+        .scan-region-guide {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            /* 調整這裡來改變方框大小 */
+            width: 60%; 
+            height: 40%;
+            border: 4px solid #00f2fe; /* 亮藍色邊框 */
+            box-shadow: 0 0 15px rgba(0, 242, 254, 0.7), inset 0 0 10px rgba(0, 242, 254, 0.5);
+            border-radius: 12px;
+            pointer-events: none; /* 讓點擊穿透，不影響按鈕 */
+            z-index: 10;
+        }
+        /* 方框中央的小十字，幫助對焦 */
+        .scan-region-guide::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 20px; height: 2px;
+            background-color: rgba(0, 242, 254, 0.8);
+            transform: translate(-50%, -50%);
+        }
+        .scan-region-guide::before {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 2px; height: 20px;
+            background-color: rgba(0, 242, 254, 0.8);
+            transform: translate(-50%, -50%);
         }
 
-        #resultBox {
-            width: 100%;
-            max-width: 640px;
-            height: 100px;
-            font-size: 16px;
-            padding: 15px;
-            border-radius: 8px;
-            border: 2px solid #bdc3c7;
-            resize: none;
-            box-sizing: border-box;
-            background-color: #fdfdfd;
-            /* 讓文字可以自動換行，不會超出框框 */
-            word-wrap: break-word; 
-        }
+        .controls { display: flex; gap: 15px; margin-bottom: 15px; }
 
-        #keywordBox {
-            width: 100%;
-            max-width: 640px;
-            padding: 15px;
-            margin-top: 15px;
-            border-radius: 8px;
-            background-color: #e2e3e5;
-            color: #383d41;
-            font-size: 20px;
-            font-weight: bold;
-            text-align: center;
-            border: 2px dashed #adb5bd;
-            box-sizing: border-box;
-            transition: all 0.3s ease;
-        }
+        #resultBox { width: 100%; max-width: 640px; height: 80px; font-size: 16px; padding: 12px; border-radius: 8px; border: 2px solid #bdc3c7; resize: none; box-sizing: border-box; background-color: #fdfdfd; word-wrap: break-word; }
 
+        #keywordBox { width: 100%; max-width: 640px; padding: 15px; margin-top: 10px; border-radius: 8px; background-color: #e2e3e5; color: #383d41; font-size: 22px; font-weight: bold; text-align: center; border: 2px dashed #adb5bd; box-sizing: border-box; transition: all 0.3s ease; }
         .found-r1 { background-color: #d4edda !important; color: #155724 !important; border-color: #c3e6cb !important; }
         .found-r2 { background-color: #d1ecf1 !important; color: #0c5460 !important; border-color: #bee5eb !important; }
         .found-r3 { background-color: #f8d7da !important; color: #721c24 !important; border-color: #f5c6cb !important; }
         .not-found { background-color: #fff3cd !important; color: #856404 !important; border-color: #ffeeba !important; }
 
-        #captureCanvas { display: none; }
+        /* 用於除錯或顯示前處理影像的隱藏 Canvas */
+        #debugCanvas { margin-top: 10px; border: 2px solid red; display: none; /* 改為 block 可查看前處理後的影像 */ }
     </style>
 </head>
 <body>
@@ -127,33 +105,37 @@
 
     <div class="status-bar" id="statusBar">
         系統狀態: <span id="sysStatus">等待連接與辨識...</span> | 
-        Microbit 傳輸: <span id="serialStatus">尚未連接</span>
+        Microbit: <span id="serialStatus">尚未連接</span>
     </div>
 
-    <video id="webcam" autoplay playsinline></video>
+    <div class="video-container">
+        <video id="webcam" autoplay playsinline></video>
+        <div class="scan-region-guide"></div>
+    </div>
 
     <div class="controls">
         <button id="flipBtn">↔️ 鏡頭翻轉</button>
         <button id="startBtn">▶️ 開始辨識</button>
     </div>
 
-    <textarea id="resultBox" placeholder="原始文字辨識結果將顯示於此 (無空格)..." readonly></textarea>
+    <textarea id="resultBox" placeholder="請將地址對準藍色方框 (每 2 秒辨識一次)..." readonly></textarea>
 
-    <div id="keywordBox">等待辨識畫面中的地址...</div>
+    <div id="keywordBox">等待辨識...</div>
 
-    <canvas id="captureCanvas"></canvas>
+    <canvas id="debugCanvas"></canvas>
 
     <script>
+        // --- 設定與 DOM ---
         const video = document.getElementById('webcam');
         const flipBtn = document.getElementById('flipBtn');
         const startBtn = document.getElementById('startBtn');
         const connectBtn = document.getElementById('connectBtn');
         const resultBox = document.getElementById('resultBox');
         const keywordBox = document.getElementById('keywordBox'); 
-        const canvas = document.getElementById('captureCanvas');
+        const debugCanvas = document.getElementById('debugCanvas');
         const sysStatus = document.getElementById('sysStatus');
         const serialStatus = document.getElementById('serialStatus');
-        const ctx = canvas.getContext('2d');
+        const debugCtx = debugCanvas.getContext('2d', { willReadFrequently: true });
 
         let worker = null;
         let isRecognizing = false;
@@ -165,20 +147,56 @@
         let isCooldown = false;
         let cooldownTimer = null;
 
-        const hkIslandKeywords = [
-            "中環", "上環", "金鐘", "灣仔", "銅鑼灣", "天后", "太平山頂", "半山區", "西營盤", "石塘咀", 
-            "堅尼地城", "摩星嶺", "薄扶林", "香港仔", "鴨脷洲", "黃竹坑", "深水灣", "淺水灣", "赤柱", "大潭", 
-            "石澳", "跑馬地", "大坑", "渣甸山", "炮台山", "北角", "鰂魚涌", "太古城", "西灣河", "筲箕灣", "柴灣", "小西灣",
-            "Central", "Sheung Wan", "Admiralty", "Wan Chai", "Causeway Bay", "Tin Hau", "The Peak", "Mid-Levels", 
-            "Sai Ying Pun", "Shek Tong Tsui", "Kennedy Town", "Mount Davis", "Pok Fu Lam", "Aberdeen", "Ap Lei Chau", 
-            "Wong Chuk Hang", "Deep Water Bay", "Repulse Bay", "Stanley", "Tai Tam", "Shek O", "Happy Valley", 
-            "Tai Hang", "Jardine's Lookout", "Fortress Hill", "North Point", "Quarry Bay", "Taikoo Shing", "Sai Wan Ho", 
-            "Shau Kei Wan", "Chai Wan", "Siu Sai Wan"
-        ];
+        // --- 港島關鍵字 ---
+        const hkIslandKeywords = ["中環","上環","金鐘","灣仔","銅鑼灣","天后","太平山頂","半山區","西營盤","石塘咀","堅尼地城","摩星嶺","薄扶林","香港仔","鴨脷洲","黃竹坑","深水灣","淺水灣","赤柱","大潭","石澳","跑馬地","大坑","渣甸山","炮台山","北角","鰂魚涌","太古城","西灣河","筲箕灣","柴灣","小西灣","Central","SheungWan","Admiralty","WanChai","CausewayBay","TinHau","ThePeak","Mid-Levels","SaiYingPun","ShekTongTsui","KennedyTown","MountDavis","PokFuLam","Aberdeen","ApLeiChau","WongChukHang","DeepWaterBay","RepulseBay","Stanley","TaiTam","ShekO","HappyValley","TaiHang","Jardine'sLookout","FortressHill","NorthPoint","QuarryBay","TaikooShing","SaiWanHo","ShauKeiWan","ChaiWan","SiuSaiWan"];
 
+        // --- 1. 前處理影像功能 (提升辨識率的核心) ---
+        // 接受原始 Canvas，返回一個處理過的 Canvas
+        function preprocessImage(sourceCanvas) {
+            const width = sourceCanvas.width;
+            const height = sourceCanvas.height;
+            
+            // 建立一個臨時畫布進行處理
+            const procCanvas = document.createElement('canvas');
+            procCanvas.width = width;
+            procCanvas.height = height;
+            const procCtx = procCanvas.getContext('2d');
+            
+            // 1. 將影像繪製上去
+            procCtx.drawImage(sourceCanvas, 0, 0);
+            
+            // 2. 取得影像像素資料
+            const imageData = procCtx.getImageData(0, 0, width, height);
+            const data = imageData.data;
+            
+            // 🌟 閾值 (Threshold)：決定多暗算黑，多亮算白 (0-255)
+            // 如果環境較暗，可以把這個值調低 (例如 100)；如果太亮有反光，可以調高。
+            const threshold = 128; 
+
+            for (let i = 0; i < data.length; i += 4) {
+                // 3. 轉灰階 (Grayscale)
+                // 使用亮度公式: 0.299R + 0.587G + 0.114B
+                const avg = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+                
+                // 4. 二值化 (Binarization) - 變成純黑白高對比
+                const value = avg >= threshold ? 255 : 0;
+                
+                data[i]     = value; // R
+                data[i + 1] = value; // G
+                data[i + 2] = value; // B
+                // data[i+3] 是 Alpha (透明度)，保持不變
+            }
+            
+            // 將處理後的像素資料放回畫布
+            procCtx.putImageData(imageData, 0, 0);
+            return procCanvas;
+        }
+
+        // --- 2. 開啟鏡頭 ---
         async function initCamera() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+                // 請求 720p 解析度
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } });
                 video.srcObject = stream;
             } catch (err) {
                 sysStatus.innerText = "無法存取鏡頭，請檢查權限";
@@ -186,159 +204,115 @@
             }
         }
 
+        // --- 3. 連接 Microbit (略過不變) ---
         connectBtn.addEventListener('click', async () => {
-            if (!('serial' in navigator)) {
-                alert("你的瀏覽器不支援 Web Serial API，請使用最新版 Google Chrome 或 Edge，並確保使用 Localhost。");
-                return;
-            }
+            if (!('serial' in navigator)) { alert("請使用最新版 Chrome/Edge 並開啟 Local Server。"); return; }
             try {
                 port = await navigator.serial.requestPort();
                 await port.open({ baudRate: 115200 }); 
-                
                 const textEncoder = new TextEncoderStream();
                 const writableStreamClosed = textEncoder.readable.pipeTo(port.writable);
                 writer = textEncoder.writable.getWriter();
-
-                serialStatus.innerText = "✅ 已連接";
-                serialStatus.style.color = "#27ae60";
-                connectBtn.innerText = "✅ Microbit 已連接";
-                connectBtn.disabled = true;
-                connectBtn.style.backgroundColor = "#27ae60";
-            } catch (error) {
-                console.error("連接 Microbit 失敗:", error);
-                serialStatus.innerText = "❌ 連接失敗";
-                serialStatus.style.color = "red";
-            }
+                serialStatus.innerText = "✅ 已連接"; serialStatus.style.color = "#27ae60"; connectBtn.innerText = "✅ 已連接"; connectBtn.disabled = true; connectBtn.style.backgroundColor = "#27ae60";
+            } catch (error) { serialStatus.innerText = "❌ 連接失敗"; serialStatus.style.color = "red"; }
         });
 
+        // --- 4. 傳送訊號 & 冷卻 (略過不變) ---
         async function sendToMicrobit(command) {
-            if (!writer) return;
-            if (isCooldown) return; 
-
-            try {
-                await writer.write(command + "\n");
-                startCooldown(command);
-            } catch (error) {
-                console.error("傳送失敗:", error);
-            }
+            if (!writer || isCooldown) return; 
+            try { await writer.write(command + "\n"); startCooldown(command); } catch (error) { console.error("傳送失敗:", error); }
         }
-
         function startCooldown(command) {
-            isCooldown = true;
-            let timeLeft = 5;
-            serialStatus.innerText = `已發送 [${command}] (冷卻中: ${timeLeft} 秒)`;
-            serialStatus.style.color = "#d35400";
-
-            cooldownTimer = setInterval(() => {
-                timeLeft--;
-                if (timeLeft <= 0) {
-                    clearInterval(cooldownTimer);
-                    isCooldown = false;
-                    serialStatus.innerText = "✅ 準備就緒";
-                    serialStatus.style.color = "#27ae60";
-                } else {
-                    serialStatus.innerText = `已發送 [${command}] (冷卻中: ${timeLeft} 秒)`;
-                }
-            }, 1000);
+            isCooldown = true; let timeLeft = 5;
+            serialStatus.innerText = `已發送 [${command}] (冷卻: ${timeLeft} 秒)`; serialStatus.style.color = "#d35400";
+            cooldownTimer = setInterval(() => { timeLeft--; if (timeLeft <= 0) { clearInterval(cooldownTimer); isCooldown = false; serialStatus.innerText = "✅ 準備就緒"; serialStatus.style.color = "#27ae60"; } else { serialStatus.innerText = `已發送 [${command}] (冷卻: ${timeLeft} 秒)`; } }, 1000);
         }
 
+        // --- 5. 邏輯判斷 ---
         function checkTextAndTrigger(text) {
-            // text 已經被清除了所有空格，直接轉小寫比對
-            const lowerText = text.toLowerCase();
+            const lowerText = text.toLowerCase(); // 注意：英文關鍵字已移除空格，如 NewTerritories
             keywordBox.className = ''; 
 
-            // 注意：因為空格被移除了，所以 "new territories" 變成了 "newterritories"
             if (lowerText.includes("九龍") || lowerText.includes("kowloon")) {
-                keywordBox.innerText = "✅ 偵測到：九龍 (R1)";
-                keywordBox.classList.add('found-r1');
-                sendToMicrobit("R1");
+                keywordBox.innerText = "✅ 偵測到：九龍 (R1)"; keywordBox.classList.add('found-r1'); sendToMicrobit("R1");
             } 
             else if (lowerText.includes("新界") || lowerText.includes("newterritories")) {
-                keywordBox.innerText = "✅ 偵測到：新界 (R2)";
-                keywordBox.classList.add('found-r2');
-                sendToMicrobit("R2");
+                keywordBox.innerText = "✅ 偵測到：新界 (R2)"; keywordBox.classList.add('found-r2'); sendToMicrobit("R2");
             } 
             else {
-                // 將港島的關鍵字清單也全部移除空格再來比對
-                const isHKIsland = hkIslandKeywords.some(keyword => {
-                    const noSpaceKeyword = keyword.toLowerCase().replace(/\s+/g, '');
-                    return lowerText.includes(noSpaceKeyword);
-                });
-
-                if (isHKIsland) {
-                    keywordBox.innerText = "✅ 偵測到：香港島 (R3)";
-                    keywordBox.classList.add('found-r3');
-                    sendToMicrobit("R3");
-                } else {
-                    keywordBox.innerText = "❌ 未偵測到目標區域";
-                    keywordBox.classList.add('not-found');
-                }
+                // 檢查港島關鍵字
+                const isHKIsland = hkIslandKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
+                if (isHKIsland) { keywordBox.innerText = "✅ 偵測到：香港島 (R3)"; keywordBox.classList.add('found-r3'); sendToMicrobit("R3"); } 
+                else { keywordBox.innerText = "❌ 未偵測到目標區域"; keywordBox.classList.add('not-found'); }
             }
         }
 
         flipBtn.addEventListener('click', () => { video.classList.toggle('flipped'); });
 
+        // --- 6. 開始辨識 (🌟升級擷取邏輯) ---
         startBtn.addEventListener('click', async () => {
             if (isRecognizing) {
-                clearInterval(intervalId);
-                isRecognizing = false;
-                startBtn.innerText = "▶️ 開始辨識";
-                startBtn.style.backgroundColor = "#27ae60";
-                sysStatus.innerText = "已停止辨識。";
-                keywordBox.innerText = "等待辨識畫面中的地址...";
-                keywordBox.className = '';
+                clearInterval(intervalId); isRecognizing = false;
+                startBtn.innerText = "▶️ 開始辨識"; startBtn.style.backgroundColor = "#27ae60"; sysStatus.innerText = "已停止。"; keywordBox.innerText = "等待辨識..."; keywordBox.className = '';
                 return;
             }
 
-            startBtn.disabled = true;
-            sysStatus.innerText = "載入中英雙語 AI 模型中...";
-            sysStatus.style.color = "#f39c12";
+            startBtn.disabled = true; sysStatus.innerText = "載入 AI 模型中..."; sysStatus.style.color = "#f39c12";
 
             try {
-                if (!worker) {
-                    worker = await Tesseract.createWorker('chi_tra+eng');
-                }
+                if (!worker) { worker = await Tesseract.createWorker('chi_tra+eng'); }
 
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
                 isRecognizing = true;
-                startBtn.innerText = "⏹️ 停止辨識";
-                startBtn.style.backgroundColor = "#c0392b";
-                startBtn.disabled = false;
-                sysStatus.innerText = "🔄 辨識中 (每 2 秒一次)";
-                sysStatus.style.color = "#0056b3";
+                startBtn.innerText = "⏹️ 停止辨識"; startBtn.style.backgroundColor = "#c0392b"; startBtn.disabled = false;
+                sysStatus.innerText = "🔄 專注辨識框內文字 (每 2 秒一次)"; sysStatus.style.color = "#0056b3";
 
                 intervalId = setInterval(async () => {
                     if (isProcessingFrame) return; 
                     isProcessingFrame = true;
 
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    // 1. 取得影片的原始尺寸
+                    const videoWidth = video.videoWidth;
+                    const videoHeight = video.videoHeight;
+                    
+                    // 🌟 核心升級：計算掃描區域 (ROI)
+                    // 這裏要對應 CSS 的 .scan-region-guide (width: 60%, height: 40%)
+                    const roiW_Percent = 0.60;
+                    const roiH_Percent = 0.40;
+                    const roiWidth = videoWidth * roiW_Percent;
+                    const roiHeight = videoHeight * roiH_Percent;
+                    const roiX = (videoWidth - roiWidth) / 2; // 中央 X
+                    const roiY = (videoHeight - roiHeight) / 2; // 中央 Y
+
+                    // 2. 設定偵錯畫布尺寸為 ROI 的尺寸，準備擷取
+                    debugCanvas.width = roiWidth;
+                    debugCanvas.height = roiHeight;
+
+                    // 3. 🌟 只擷取方框內的原始影像 (sx, sy, sw, sh -> dx, dy, dw, dh)
+                    debugCtx.drawImage(video, roiX, roiY, roiWidth, roiHeight, 0, 0, roiWidth, roiHeight);
+
+                    // 4. 🌟 進行前處理 (純黑白高對比)
+                    const processedCanvas = preprocessImage(debugCanvas);
+                    
+                    // (選用) 如果你想在網頁上看到 AI 到底看到了甚麼，請打開這行：
+                    // debugCtx.drawImage(processedCanvas, 0, 0); 
 
                     try {
-                        const { data: { text } } = await worker.recognize(canvas);
-                        
-                        // 🌟 核心改動：利用正規表達式移除所有的空白字元（包含空格、換行等）
+                        // 5. 🌟 將處理後的純黑白圖片交給 AI
+                        const { data: { text } } = await worker.recognize(processedCanvas);
                         const cleanText = text.replace(/\s+/g, '');
                         
                         if (cleanText !== "") {
-                            resultBox.value = `[最新辨識結果]:\n${cleanText}`;
+                            resultBox.value = `[框內文字]:\n${cleanText}`;
                             checkTextAndTrigger(cleanText);
                         } else {
-                            keywordBox.innerText = "❌ 畫面中找不到文字";
-                            keywordBox.className = 'not-found';
+                            keywordBox.innerText = "❌ 框內找不到文字"; keywordBox.className = 'not-found';
                         }
-                    } catch (error) {
-                        console.error("辨識錯誤:", error);
-                    } finally {
-                        isProcessingFrame = false;
-                    }
+                    } catch (error) { console.error("辨識錯誤:", error); } 
+                    finally { isProcessingFrame = false; }
 
                 }, 2000); 
 
-            } catch (error) {
-                sysStatus.innerText = "載入模型失敗";
-                startBtn.disabled = false;
-            }
+            } catch (error) { sysStatus.innerText = "載入模型失敗"; startBtn.disabled = false; }
         });
 
         window.onload = initCamera;
